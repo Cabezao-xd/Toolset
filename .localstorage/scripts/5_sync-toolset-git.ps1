@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
  Sincroniza exclusivamente el estado de campaña y la publicación ECE.
 
@@ -9,7 +9,7 @@
 #>
 param(
  [Parameter(Mandatory = $true)] [string]$StopSignalFile,
- [string]$CampaignFileName = 'd8383957-1a6b-4719-9b68-797f03145404',
+ [string]$CampaignFileName = 'a1cb730c-82dc-4040-9107-d4f8e7374343',
  [string]$Branch = 'main',
  [int]$IntervalSeconds = 15,
  [switch]$ValidateOnly,
