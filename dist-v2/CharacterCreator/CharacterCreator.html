@@ -5,42 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>D&D Character Creator</title>
 
-    <!-- ============================================================ -->
-    <!-- BLOQUE 0: Stubs de los 9 callbacks del manifiesto             -->
-    <!-- Va lo PRIMERO del <head>, antes de cualquier CSS o script,    -->
-    <!-- para que estén en window antes de que Vuplex empiece a contar -->
-    <!-- el initTimeout (5s). Si falta uno → "timeout waiting on user  -->
-    <!-- callback. init failed".                                       -->
-    <!-- ============================================================ -->
+    <!-- BLOQUE 0: Stubs de los 9 callbacks del manifiesto -->
     <script>
     (function installSymbioteStubs() {
         if (window.__ts5e_stubs_installed) return;
         window.__ts5e_stubs_installed = true;
 
         const stubs = [
-            'handleRollResult',              // dice.onRollResults
-            'logSymbioteEvent',              // symbiote.onVisibilityEvent
-            'onStateChangeEvent',            // symbiote.onStateChangeEvent (se redefine abajo)
-            'onCreatureStateChange',         // creatures.onCreatureStateChange
-            'handleSyncEvents',              // sync.onSyncMessage
-            'handleSyncClientEvents',        // sync.onClientEvent
-            'handleClientEvents',            // clients.onClientEvent
-            'handlePlayerPermissionEvents',  // players.onCampaignPlayerEvent
-            'handleChatMessage'              // chat.onChatMessage
+            'handleRollResult',
+            'logSymbioteEvent',
+            'onStateChangeEvent',
+            'onCreatureStateChange',
+            'handleSyncEvents',
+            'handleSyncClientEvents',
+            'handleClientEvents',
+            'handlePlayerPermissionEvents',
+            'handleChatMessage'
         ];
 
         stubs.forEach(name => {
             if (typeof window[name] !== 'function') {
-                window[name] = function () {
-                    // Silencioso por defecto. Cambia a console.log si necesitas debug.
-                };
+                window[name] = function () {};
             }
         });
 
         console.log('[CC] Stubs instalados:', stubs);
     })();
 
-    // onStateChangeEvent con log — nos dice si llega el hasInitialized
     window.onStateChangeEvent = async function (msg) {
         console.log('[CC] onStateChangeEvent:', msg);
         if (msg && msg.kind === 'hasInitialized') {
@@ -48,17 +39,12 @@
         }
     };
 
-    // logSymbioteEvent con log
     window.logSymbioteEvent = function (event) {
         console.log('[CC] logSymbioteEvent:', event);
     };
     </script>
 
-    <!-- ============================================================ -->
-    <!-- BLOQUE 1: Parche de diálogos nativos (Vuplex los bloquea)     -->
-    <!-- window.confirm/prompt/alert devuelven false/""/undefined en   -->
-    <!-- Vuplex, rompiendo silenciosamente cualquier flujo que los use -->
-    <!-- ============================================================ -->
+    <!-- BLOQUE 1: Parche de diálogos nativos -->
     <script>
     (function fixBlockedDialogs() {
         if (window.__ts5e_dialogs_fixed) return;
@@ -161,11 +147,7 @@
     })();
     </script>
 
-    <!-- ============================================================ -->
-    <!-- BLOQUE 2: promptAsync — prompt REAL y asíncrono               -->
-    <!-- Úsalo desde loadCharacter u otro flujo que necesite el valor  -->
-    <!-- que el usuario escriba (window.prompt no puede bloquear).     -->
-    <!-- ============================================================ -->
+    <!-- BLOQUE 2: promptAsync — prompt REAL y asíncrono -->
     <script>
     window.promptAsync = function (mensaje, porDefecto = '') {
         return new Promise((resolve) => {
@@ -237,7 +219,6 @@
             </div>
 
             <div class="tab-content">
-                <!-- Basics Tab -->
                 <div id="basics" class="tab-pane active">
                     <h2>Character Basics</h2>
                     <div class="form-group">
@@ -285,26 +266,17 @@
                     </div>
                 </div>
 
-                <!-- Species Tab -->
                 <div id="species" class="tab-pane">
                     <h2>Choose Your Species</h2>
-                    <div id="speciesSelection" class="species-selection">
-                        <!-- Species will be populated here -->
-                    </div>
-
+                    <div id="speciesSelection" class="species-selection"></div>
                     <div id="speciesModal" class="modalCharacterCreator hidden">
-                        <div class="modalCreatorContent" id="speciesModalContent">
-                            <!-- Species details will be shown here -->
-                        </div>
+                        <div class="modalCreatorContent" id="speciesModalContent"></div>
                     </div>
                 </div>
 
-                <!-- Class Tab -->
                 <div id="class" class="tab-pane">
                     <h2>Choose Your Class</h2>
-                    <div id="classSelection" class="class-selection">
-                        <!-- Classes will be populated here -->
-                    </div>
+                    <div id="classSelection" class="class-selection"></div>
 
                     <section id="classInfoDisplay" class="hidden">
                         <div id="levelSelection" style="display: none;">
@@ -314,40 +286,26 @@
                                 <div class="level-value" id="levelValue">Level 1</div>
                             </div>
                         </div>
-
                         <div id="subclassSelection" style="display: none;">
                             <h3>Choose Your Subclass</h3>
-                            <div id="subclassOptions" class="subclass-options">
-                                <!-- Subclasses will be populated here -->
-                            </div>
+                            <div id="subclassOptions" class="subclass-options"></div>
                         </div>
-
-                        <div id="subraceSelection" style="display: none;">
-                            <!-- Subraces will be populated here -->
-                        </div>
+                        <div id="subraceSelection" style="display: none;"></div>
                     </section>
                 </div>
 
-                <!-- Abilities Tab -->
                 <div id="abilities" class="tab-pane">
                     <h3>Set Ability Scores</h3>
-                    <!-- Dynamic ability score interface will be populated here -->
                 </div>
 
-                <!-- Features Tab -->
                 <div id="features" class="tab-pane">
                     <h2>Character Features & Choices</h2>
-                    <div id="featureChoices">
-                        <!-- Feature choices will be populated here -->
-                    </div>
+                    <div id="featureChoices"></div>
                 </div>
 
-                <!-- Summary Tab -->
                 <div id="summary" class="tab-pane">
                     <h2>Character Summary</h2>
-                    <div id="characterSummary">
-                        <!-- Summary will be populated here -->
-                    </div>
+                    <div id="characterSummary"></div>
                     <div class="navigation-buttons">
                         <button class="btn btn-secondary" onclick="goBack()">Back to Main</button>
                         <button class="btn btn-success" onclick="saveCharacter()">Save Character</button>
@@ -370,18 +328,13 @@
   </div>
 </div>
 
-<footer>
-
-</footer>
+<footer></footer>
 
 <script src="LoadCharacter.js" defer></script>
 <script src="CharacterCreator.js" defer></script>
-
 <script src="Species.js" defer></script>
 <script src="AbilityScore.js" defer></script>
 <script src="ClassCreator.js" defer></script>
-
 <script src="Backgrounds.js" defer></script>
-
 <script src="SavingCharacter.js" defer></script>
 </html>

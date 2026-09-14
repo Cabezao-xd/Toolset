@@ -1,11 +1,12 @@
 <#
 .SYNOPSIS
-  Espera a que TaleSpire cierre y avisa a los demas workers.
+  Espera a que TaleSpire cierre, hace auto-commit de la campaña a git y avisa a los demas workers.
 
 .DESCRIPTION
-  Responsabilidad unica:
+  Responsabilidad:
     - Esperar a que aparezca el proceso TaleSpire.
     - Mantenerse vivo mientras el proceso exista.
+    - Al cerrar: hacer commit + push de .localstorage/ a git.
     - Crear un archivo senal cuando TaleSpire cierre.
 #>
 
@@ -45,6 +46,60 @@ function Set-StopSignal {
     Set-Content -Path $StopSignalFile -Value (Get-Date -Format o) -Force
 }
 
+# --- AUTO-COMMIT ---
+function Invoke-ToolsetAutoCommit {
+    $toolsetRoot = "C:\Users\martin\AppData\LocalLow\BouncyRock Entertainment\TaleSpire\Symbiotes\Toolset"
+
+    if (-not (Test-Path $toolsetRoot)) {
+        Write-Log "[auto-commit] No se encontro el Toolset en $toolsetRoot. Saltando."
+        return
+    }
+
+    Push-Location $toolsetRoot
+    try {
+        # Comprobar que estamos en un repo git
+        git rev-parse --is-inside-work-tree 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log '[auto-commit] No es un repositorio git. Saltando.'
+            return
+        }
+
+        # Anadir .localstorage al stage
+        git add .localstorage/ 2>&1 | Out-Null
+
+        # Ver si hay algo para commitear
+        $status = git status --porcelain
+        if (-not $status) {
+            Write-Log '[auto-commit] Sin cambios en .localstorage/. Nada que subir.'
+            return
+        }
+
+        # Commit
+        $msg = "auto: cierre de sesion $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+        git commit -m $msg 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log '[auto-commit] git commit fallo.'
+            return
+        }
+
+        # Push
+        git push 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log '[auto-commit] git push fallo (revisa credenciales o conexion).'
+            return
+        }
+
+        Write-Log "[auto-commit] Backup subido: $msg"
+    }
+    catch {
+        Write-Log ("[auto-commit] ERROR: {0}" -f $_.Exception.Message)
+    }
+    finally {
+        Pop-Location
+    }
+}
+# --- FIN AUTO-COMMIT ---
+
 try {
     Write-Log 'Esperando proceso TaleSpire...'
 
@@ -71,7 +126,15 @@ try {
         Start-Sleep -Seconds 2
     }
 
-    Write-Log 'TaleSpire cerrado. Enviando senal de stop.'
+    Write-Log 'TaleSpire cerrado.'
+
+    # --- AUTO-COMMIT ---
+    # Antes de avisar al resto de workers, subimos el estado a git.
+    Write-Log 'Ejecutando auto-commit...'
+    Invoke-ToolsetAutoCommit
+    # --- FIN AUTO-COMMIT ---
+
+    Write-Log 'Enviando senal de stop.'
     Set-StopSignal
     exit 0
 }

@@ -7,10 +7,6 @@
 
     <!-- ============================================================ -->
     <!-- BLOQUE 0: Stubs de los 9 callbacks del manifiesto             -->
-    <!-- Va lo PRIMERO del <head>, antes de cualquier CSS o script,    -->
-    <!-- para que estén en window antes de que Vuplex empiece a contar -->
-    <!-- el initTimeout (5s). Si falta uno → "timeout waiting on user  -->
-    <!-- callback. init failed".                                       -->
     <!-- ============================================================ -->
     <script>
     (function installSymbioteStubs() {
@@ -18,29 +14,26 @@
         window.__ts5e_stubs_installed = true;
 
         const stubs = [
-            'handleRollResult',              // dice.onRollResults
-            'logSymbioteEvent',              // symbiote.onVisibilityEvent
-            'onStateChangeEvent',            // symbiote.onStateChangeEvent (se redefine abajo)
-            'onCreatureStateChange',         // creatures.onCreatureStateChange
-            'handleSyncEvents',              // sync.onSyncMessage
-            'handleSyncClientEvents',        // sync.onClientEvent
-            'handleClientEvents',            // clients.onClientEvent
-            'handlePlayerPermissionEvents',  // players.onCampaignPlayerEvent
-            'handleChatMessage'              // chat.onChatMessage
+            'handleRollResult',
+            'logSymbioteEvent',
+            'onStateChangeEvent',
+            'onCreatureStateChange',
+            'handleSyncEvents',
+            'handleSyncClientEvents',
+            'handleClientEvents',
+            'handlePlayerPermissionEvents',
+            'handleChatMessage'
         ];
 
         stubs.forEach(name => {
             if (typeof window[name] !== 'function') {
-                window[name] = function () {
-                    // Silencioso por defecto. Cambia a console.log si necesitas debug.
-                };
+                window[name] = function () {};
             }
         });
 
         console.log('[CC] Stubs instalados:', stubs);
     })();
 
-    // onStateChangeEvent con log — nos dice si llega el hasInitialized
     window.onStateChangeEvent = async function (msg) {
         console.log('[CC] onStateChangeEvent:', msg);
         if (msg && msg.kind === 'hasInitialized') {
@@ -48,7 +41,6 @@
         }
     };
 
-    // logSymbioteEvent con log
     window.logSymbioteEvent = function (event) {
         console.log('[CC] logSymbioteEvent:', event);
     };
@@ -56,8 +48,6 @@
 
     <!-- ============================================================ -->
     <!-- BLOQUE 1: Parche de diálogos nativos (Vuplex los bloquea)     -->
-    <!-- window.confirm/prompt/alert devuelven false/""/undefined en   -->
-    <!-- Vuplex, rompiendo silenciosamente cualquier flujo que los use -->
     <!-- ============================================================ -->
     <script>
     (function fixBlockedDialogs() {
@@ -163,8 +153,6 @@
 
     <!-- ============================================================ -->
     <!-- BLOQUE 2: promptAsync — prompt REAL y asíncrono               -->
-    <!-- Úsalo desde loadCharacter u otro flujo que necesite el valor  -->
-    <!-- que el usuario escriba (window.prompt no puede bloquear).     -->
     <!-- ============================================================ -->
     <script>
     window.promptAsync = function (mensaje, porDefecto = '') {
@@ -213,6 +201,62 @@
         });
     };
     console.log('[CC] promptAsync listo.');
+    </script>
+
+    <!-- ============================================================ -->
+    <!-- BLOQUE 2.5: Puente con v2.html vía localStorage              -->
+    <!-- Vuplex bloquea navigator.clipboard.readText() en v2.          -->
+    <!-- Cuando este HTML (CharacterCreator) copia algo al portapapeles,-->
+    <!-- también lo guardamos en localStorage. v2 lo leerá desde ahí.  -->
+    <!-- ============================================================ -->
+    <script>
+    (function puenteClipboardALocalStorage() {
+        if (window.__ts5e_bridge_installed) return;
+        window.__ts5e_bridge_installed = true;
+
+        const KEY = 'ts5e:last-export';
+        const originalWrite = navigator.clipboard?.writeText?.bind(navigator.clipboard);
+
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText = async function (texto) {
+                // 1) Guardar SIEMPRE en localStorage (para que v2 lo lea)
+                try {
+                    localStorage.setItem(KEY, String(texto));
+                    console.log('[CC] Guardado en localStorage[' + KEY + '] (' + String(texto).length + ' chars).');
+                } catch (e) {
+                    console.warn('[CC] No se pudo guardar en localStorage:', e);
+                }
+
+                // 2) Intentar el clipboard real
+                if (originalWrite) {
+                    try {
+                        await originalWrite(texto);
+                        console.log('[CC] Clipboard nativo OK.');
+                        return;
+                    } catch (e) {
+                        console.warn('[CC] Clipboard nativo falló:', e?.message || e);
+                    }
+                }
+
+                // 3) Fallback: textarea + execCommand
+                try {
+                    const ta = document.createElement('textarea');
+                    ta.value = String(texto);
+                    ta.style.cssText = 'position:fixed;top:-1000px;left:-1000px;opacity:0;';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    ta.setSelectionRange(0, ta.value.length);
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    console.log('[CC] Clipboard fallback (textarea) OK.');
+                } catch (e) {
+                    console.warn('[CC] Fallback clipboard falló:', e);
+                }
+            };
+        }
+
+        console.log('[CC] Puente clipboard→localStorage instalado.');
+    })();
     </script>
 
     <link rel="stylesheet" href="CharacterCreator.css">
