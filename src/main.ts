@@ -163,6 +163,20 @@ async function startTaleSpire(api: TaleSpireApiSubset): Promise<void> {
   }).start();
 }
 
+// NUEVO: esperar a que TaleSpire inyecte window.TS antes de detectarlo
+async function waitForTs(timeoutMs = 20000): Promise<void> {
+  const start = Date.now();
+  while (!(window as any).TS && Date.now() - start < timeoutMs) {
+    await new Promise(r => setTimeout(r, 100));
+  }
+  if (!(window as any).TS) {
+    console.warn('[V2] TS no apareció en ' + timeoutMs + 'ms, siguiendo en modo fallback');
+  } else {
+    console.log('[V2] TS detectado tras ' + (Date.now() - start) + 'ms');
+  }
+}
+await waitForTs();
+
 const taleSpireApi = detectTaleSpireApi(window.TS);
 window.handleRollResult = (event) => { void activeTaleSpireDiceRoller?.handleRollEvent(event); };
 window.logSymbioteEvent = () => undefined;

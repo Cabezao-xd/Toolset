@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaleSpire 5e Toolset v2</title>
+
+    <script>
+      // ============================================================
+      // 1. STUBS de callbacks del manifiesto
+      // ============================================================
+      const stubs = [
+        'handleRollResult', 'logSymbioteEvent', 'onStateChangeEvent',
+        'onCreatureStateChange', 'handleSyncEvents', 'handleSyncClientEvents',
+        'handleClientEvents', 'handlePlayerPermissionEvents', 'handleChatMessage'
+      ];
+      stubs.forEach(n => { if (typeof window[n] !== 'function') window[n] = function(){}; });
+    </script>
+
+    <script>
+      // ============================================================
+      // 2. FIX DIALOGS (Vuplex bloquea confirm/alert/prompt)
+      // ============================================================
+      (function fixBlockedDialogs() {
+        if (window.__ts5e_dialogs_fixed) return;
+        window.__ts5e_dialogs_fixed = true;
+
+        function overlay(mensaje, botones) {
+          return new Promise((resolve) => {
+            const o = document.createElement('div');
+            o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;font-family:Inter,system-ui,sans-serif;';
+            const c = document.createElement('div');
+            c.style.cssText = 'background:#1c1c1c;color:#edf1e8;padding:20px 24px;border-radius:10px;border:1px solid #3a4a36;max-width:480px;min-width:280px;box-shadow:0 10px 40px rgba(0,0,0,.7);';
+            const txt = document.createElement('div');
+            txt.textContent = mensaje;
+            txt.style.cssText = 'margin-bottom:18px;font-size:14px;line-height:1.5;white-space:pre-wrap;';
+            c.appendChild(txt);
+
+            let inputEl = null;
+            if (botones.input !== undefined) {
+              inputEl = document.createElement('input');
+              inputEl.type = 'text';
+              inputEl.value = botones.input;
+              inputEl.style.cssText = 'width:100%;box-sizing:border-box;background:#121711;color:#edf1e8;border:1px solid #4a5a46;border-radius:6px;padding:8px;margin-bottom:14px;font-size:14px;';
+              c.appendChild(inputEl);
+            }
+
+            const fila = document.createElement('div');
+            fila.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
+
+            botones.items.forEach(({ label, valor, color, foco }) => {
+              const b = document.createElement('button');
+              b.textContent = label;
+              b.style.cssText = 'padding:7px 14px;border-radius:6px;cursor:pointer;font-weight:bold;font-size:13px;' +
+                (color === 'primary' ? 'background:#d9bd73;color:#1c1c1c;border:none;'
+                : color === 'danger' ? 'background:#a50000;color:#fff;border:none;'
+                : 'background:#2a3826;color:#d9bd73;border:1px solid #4a5a46;');
+              b.onclick = () => {
+                document.body.removeChild(o);
+                resolve(inputEl ? inputEl.value : valor);
+              };
+              fila.appendChild(b);
+              if (foco) setTimeout(() => b.focus(), 10);
+            });
+
+            c.appendChild(fila);
+            o.appendChild(c);
+            document.body.appendChild(o);
+
+            o.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter') {
+                const ok = fila.querySelector('button[data-focus="true"]');
+                (ok || fila.lastChild).click();
+              }
+              if (e.key === 'Escape') fila.firstChild.click();
+            });
+
+            if (inputEl) { inputEl.focus(); inputEl.select(); }
+          });
+        }
+
+        window.confirm = function (mensaje) {
+          console.log('[TS5E] confirm:', mensaje);
+          overlay(String(mensaje || ''), {
+            items: [
+              { label: 'Cancelar', valor: false },
+              { label: 'Aceptar', valor: true, color: 'primary', foco: true }
+            ]
+          }).then(ok => console.log('[TS5E] confirm respuesta:', ok));
+          return true;
+        };
+
+        window.alert = function (mensaje) {
+          console.log('[TS5E] alert:', mensaje);
+          overlay(String(mensaje || ''), {
+            items: [{ label: 'OK', valor: undefined, color: 'primary', foco: true }]
+          });
+        };
+
+        window.prompt = function (mensaje, porDefecto) {
+          console.log('[TS5E] prompt:', mensaje, porDefecto);
+          const def = porDefecto == null ? '' : String(porDefecto);
+          overlay(String(mensaje || ''), {
+            input: def,
+            items: [
+              { label: 'Cancelar', valor: '' },
+              { label: 'Aceptar', valor: def, color: 'primary', foco: true }
+            ]
+          }).then(v => console.log('[TS5E] prompt respuesta:', v));
+          return def;
+        };
+
+        console.log('[TS5E] Dialogs nativos parcheados (confirm/alert/prompt).');
+      })();
+    </script>
+
+    <script>
+      // ============================================================
+      // 3. CONFIRM BLOQUEANTE PARA #delete-character
+      // ============================================================
+      (function confirmDeleteBlocking() {
+        function preguntar(mensaje) {
+          return new Promise((resolve) => {
+            const o = document.createElement('div');
+            o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;font-family:Inter,system-ui,sans-serif;';
+            const c = document.createElement('div');
+            c.style.cssText = 'background:#1c1c1c;color:#edf1e8;padding:20px 24px;border-radius:10px;border:1px solid #3a4a36;max-width:440px;';
+            const txt = document.createElement('div');
+            txt.textContent = mensaje;
+            txt.style.cssText = 'margin-bottom:18px;font-size:14px;line-height:1.5;';
+            const fila = document.createElement('div');
+            fila.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
+            const no = document.createElement('button');
+            no.textContent = 'Cancelar';
+            no.style.cssText = 'background:#2a3826;color:#d9bd73;border:1px solid #4a5a46;border-radius:6px;padding:7px 14px;cursor:pointer;';
+            const si = document.createElement('button');
+            si.textContent = 'Eliminar';
+            si.style.cssText = 'background:#a50000;color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;font-weight:bold;';
+            no.onclick = () => { document.body.removeChild(o); resolve(false); };
+            si.onclick = () => { document.body.removeChild(o); resolve(true); };
+            fila.append(no, si);
+            c.append(txt, fila);
+            o.append(c);
+            document.body.append(o);
+            si.focus();
+          });
+        }
+
+        document.addEventListener('click', async (ev) => {
+          const btn = ev.target.closest('#delete-character');
+          if (!btn) return;
+          if (btn.__ts5e_confirmed) { btn.__ts5e_confirmed = false; return; }
+          ev.stopImmediatePropagation();
+          ev.preventDefault();
+
+          let nombre = 'el personaje seleccionado';
+          try {
+            const raw = localStorage.getItem('talespire-5e-toolset:v2:campaign');
+            if (raw) {
+              const env = JSON.parse(raw);
+              const pjs = Object.values(env.campaign?.characters || {});
+              if (pjs.length === 1) nombre = pjs[0].name;
+            }
+          } catch (e) {}
+
+          const ok = await preguntar(`¿Eliminar a ${nombre}? Esta acción no se puede deshacer.`);
+          if (!ok) return;
+          btn.__ts5e_confirmed = true;
+          btn.click();
+        }, true);
+      })();
+    </script>
+
+    <style>
+      .toolset-rolling { outline: 2px solid #d9bd73 !important; outline-offset: 2px; transition: outline 0.15s ease; }
+
+      #ts5e-view-tabs {
+        position: fixed; top: 0; left: 0; right: 0; z-index: 2147483646;
+        display: flex; background: #0a0a0a; border-bottom: 1px solid #3a4a36;
+        font-family: Inter, system-ui, sans-serif;
+      }
+      #ts5e-view-tabs button {
+        flex: 1; padding: 10px 12px; border: none; cursor: pointer;
+        font-weight: bold; font-size: 13px; transition: all .15s ease;
+        border-right: 1px solid #3a4a36;
+      }
+      #ts5e-view-tabs button:last-child { border-right: none; }
+      #ts5e-view-tabs button:hover { filter: brightness(1.2); }
+      #ts5e-view-tabs button.active { background: #d9bd73; color: #1c1c1c; }
+      #ts5e-view-tabs button.inactive { background: #1c1c1c; color: #edf1e8; }
+    </style>
+  </head>
+  <body>
+    <main id="app" aria-live="polite"></main>
+
+    <script>
+      // ============================================================
+      // 4. PESTAÑAS DE VISTA (PJ / GM / Auto)
+      // ============================================================
+      (function setupViewTabs() {
+        const current = localStorage.getItem('ts5e:view') || 'auto';
+
+        const tabs = document.createElement('div');
+        tabs.id = 'ts5e-view-tabs';
+
+        const pjTab = document.createElement('button');
+        pjTab.textContent = '🎲 Hoja de PJ';
+        pjTab.className = (current === 'player') ? 'active' : 'inactive';
+        pjTab.onclick = () => { localStorage.setItem('ts5e:view', 'player'); location.reload(); };
+
+        const gmTab = document.createElement('button');
+        gmTab.textContent = '👑 Control de GM';
+        gmTab.className = (current === 'gm') ? 'active' : 'inactive';
+        gmTab.onclick = () => { localStorage.setItem('ts5e:view', 'gm'); location.reload(); };
+
+        const autoTab = document.createElement('button');
+        autoTab.textContent = '🔄 Auto';
+        autoTab.className = (current === 'auto') ? 'active' : 'inactive';
+        autoTab.onclick = () => { localStorage.removeItem('ts5e:view'); location.reload(); };
+
+        tabs.append(pjTab, gmTab, autoTab);
+        document.body.appendChild(tabs);
+
+        document.body.style.paddingTop = '44px';
+        document.body.style.boxSizing = 'border-box';
+      })();
+    </script>
+
+    <script>
+      // ============================================================
+      // 5. WATCHER DE TS: aplica parches en cuanto window.TS exista
+      //    (antes que main.ts llame a resolveTaleSpireClientRole)
+      // ============================================================
+      (function watchTsAndPatch() {
+        if (window.__ts5e_watcher_started) return;
+        window.__ts5e_watcher_started = true;
+
+        const desiredView = localStorage.getItem('ts5e:view') || 'auto';
+
+        const interval = setInterval(() => {
+          if (!window.TS) return;
+          const ts = window.TS;
+
+          // A. FIX getSelectedCreatures → array de strings
+          if (!window.__ts5e_selected_creatures_fixed && ts.creatures?.getSelectedCreatures) {
+            window.__ts5e_selected_creatures_fixed = true;
+            const orig = ts.creatures.getSelectedCreatures.bind(ts.creatures);
+            ts.creatures.getSelectedCreatures = async function (...args) {
+              const arr = await orig(...args);
+              if (!Array.isArray(arr) || arr.length === 0) return arr;
+              return arr.map(x => typeof x === 'string' ? x : String(x?.id ?? '')).filter(Boolean);
+            };
+            console.log('[V2] getSelectedCreatures parcheado (strings)');
+          }
+
+          // B. Anuncio de tiradas en el chat
+          if (!window.__ts5e_roll_chat && ts.dice?.putDiceInTray && ts.players?.whoAmI && ts.chat?.send) {
+            window.__ts5e_roll_chat = true;
+            const origPut = ts.dice.putDiceInTray.bind(ts.dice);
+            let playerIdCache = null;
+
+            async function getPlayerId() {
+              if (playerIdCache) return playerIdCache;
+              try { const p = await ts.players.whoAmI(); playerIdCache = p?.id || null; return playerIdCache; }
+              catch { return null; }
+            }
+            function extraerNotacion(d) {
+              if (!d) return null;
+              if (typeof d === 'string') return d;
+              if (Array.isArray(d)) {
+                const t = d.map(x => typeof x === 'string' ? x : (x?.name || x?.notation)).filter(Boolean);
+                return t.length ? t.join(' + ') : null;
+              }
+              return d.name || d.notation || null;
+            }
+            function nombrePJ() {
+              try {
+                const raw = localStorage.getItem('talespire-5e-toolset:v2:campaign');
+                if (raw) {
+                  const env = JSON.parse(raw);
+                  const pjs = Object.values(env.campaign?.characters || {});
+                  for (const pj of pjs) {
+                    if (!pj.name) continue;
+                    const el = [...document.querySelectorAll('h1, h2, h3')].find(e => e.textContent?.trim() === pj.name);
+                    if (el) return pj.name;
+                  }
+                  if (pjs[0]?.name) return pjs[0].name;
+                }
+              } catch {}
+              return 'Alguien';
+            }
+
+            ts.dice.putDiceInTray = async function (d, ...rest) {
+              const r = await origPut(d, ...rest);
+              try {
+                const n = extraerNotacion(d);
+                const q = nombrePJ();
+                const pid = await getPlayerId();
+                if (pid && n) {
+                  const msg = `🎲 ${q} tira: ${n}`;
+                  await ts.chat.send(msg, pid);
+                  console.log('[CHAT]', msg);
+                }
+              } catch (e) { console.warn('[CHAT] error:', e?.message || e); }
+              return r;
+            };
+            console.log('[V2] Chat de tiradas activado');
+          }
+
+          // C. Spoof temporal de rol (según la tab activa)
+          if (desiredView !== 'auto' && !window.__ts5e_role_spoofed && ts.clients?.whoAmI) {
+            window.__ts5e_role_spoofed = true;
+            const role = desiredView === 'gm' ? 'gm' : 'player';
+            const patch = (v) => (v && typeof v === 'object' && !Array.isArray(v)) ? { ...v, clientMode: role } : v;
+
+            const oWho = ts.clients.whoAmI.bind(ts.clients);
+            const oMore = ts.clients.getMoreInfo?.bind(ts.clients);
+
+            ts.clients.whoAmI = async (...a) => patch(await oWho(...a));
+            if (oMore) {
+              ts.clients.getMoreInfo = async (list, ...a) => {
+                const r = await oMore(list, ...a);
+                return Array.isArray(r) ? r.map(patch) : patch(r);
+              };
+            }
+            console.log('[V2] Spoof de rol aplicado:', role);
+
+            // Restaurar tras 5s (main.ts ya habrá decidido la vista)
+            setTimeout(() => {
+              ts.clients.whoAmI = oWho;
+              if (oMore) ts.clients.getMoreInfo = oMore;
+              console.log('[V2] whoAmI/getMoreInfo restaurados al real');
+            }, 5000);
+          }
+
+          // Cuando todos los parches están aplicados, dejamos de mirar
+          if (window.__ts5e_selected_creatures_fixed &&
+              window.__ts5e_roll_chat &&
+              (desiredView === 'auto' || window.__ts5e_role_spoofed)) {
+            clearInterval(interval);
+            console.log('[V2] Todos los parches de TS aplicados.');
+          }
+        }, 20);
+
+        // Timeout por si nunca llega TS
+        setTimeout(() => clearInterval(interval), 25000);
+      })();
+    </script>
+
+    <script>
+      // ============================================================
+      // 6. CLICK-TO-ROLL
+      // ============================================================
+      (function setupClickToRoll() {
+        const EXCLUDE = [
+          /descanso/i, /edici[oó]n/i, /juego/i,
+          /^da[ñn]o$/i, /^curar$/i, /^cantidad$/i,
+          /pg\s*temp/i, /salv\.?\s*muerte/i,
+          /^[eé]xito$/i, /^fallo$/i, /reiniciar/i,
+          /activar/i, /^color$/i, /^d\d+/i, /tiradas/i,
+          /eliminar/i, /borrar/i, /crear/i, /a[ñn]adir/i,
+          /editar/i, /guardar/i, /cancelar/i, /cerrar/i,
+          /importar/i, /exportar/i, /confirmar/i, /aceptar/i
+        ];
+        function shouldRoll(t) {
+          if (!t || t.length > 40) return false;
+          for (const rx of EXCLUDE) if (rx.test(t)) return false;
+          return true;
+        }
+        function extraerModificador(text) {
+          let m = text.match(/([+-]\d{1,2})(\d{2})$/); if (m) return m[1];
+          m = text.match(/([+-]\d{1,2})(\d)$/);         if (m) return m[1];
+          m = text.match(/[+-]\d{1,2}/);                if (m) return m[0];
+          return null;
+        }
+
+        let ultimoDisparo = 0;
+        const DEBOUNCE_MS = 400;
+
+        document.addEventListener('click', (ev) => {
+          if (ev.__ts5e_synthetic) return;
+          const ahora = Date.now();
+          if (ahora - ultimoDisparo < DEBOUNCE_MS) return;
+
+          const app = document.getElementById('app');
+          if (!app || !app.contains(ev.target)) return;
+
+          const btn = ev.target.closest('button, [role="button"]');
+          if (!btn) return;
+          if (btn.id === 'delete-character') return;
+          if (btn.id === 'export-character') return;
+          if (btn.id === 'link-miniature') return;
+
+          const text = (btn.textContent || '').replace(/\s+/g, ' ').trim();
+          if (!text || !/[A-Za-zÁÉÍÓÚáéíóúñ]/.test(text)) return;
+          if (!shouldRoll(text)) return;
+
+          const mod = extraerModificador(text);
+          if (!mod) return;
+
+          ultimoDisparo = ahora;
+          const notacion = `1d20${mod}`;
+          console.log('[TS5E] Click-to-roll →', notacion, '| desde:', text);
+
+          btn.classList.add('toolset-rolling');
+          setTimeout(() => btn.classList.remove('toolset-rolling'), 500);
+
+          window.lanzarDado(notacion);
+        }, true);
+      })();
+
+      // ============================================================
+      // 7. LANZAR DADO
+      // ============================================================
+      function esperarDice(timeoutMs = 10000) {
+        return new Promise((resolve) => {
+          const inicio = Date.now();
+          (function check() {
+            const ts = window.com && window.com.bouncyrock && window.com.bouncyrock.talespire;
+            if (ts && ts.dice && typeof ts.dice.putDiceInTray === 'function') return resolve(ts);
+            if (Date.now() - inicio > timeoutMs) return resolve(null);
+            setTimeout(check, 150);
+          })();
+        });
+      }
+
+      window.lanzarDado = async function (notacion) {
+        const ts = await esperarDice();
+        if (!ts) { console.error('[TS5E] ts.dice no disponible'); return null; }
+        try {
+          const str = (notacion || '1d20').trim();
+          if (!await ts.dice.isValidRollString(str)) {
+            console.error('[TS5E] Notación inválida:', str);
+            return null;
+          }
+          const d = await ts.dice.makeRollDescriptors(str);
+          await ts.dice.putDiceInTray(d, false);
+          return true;
+        } catch (e) {
+          console.error('[TS5E] Error lanzarDado:', e);
+          return null;
+        }
+      };
+
+      window.tirarAtaque    = (b) => window.lanzarDado(`1d20${b >= 0 ? '+' : ''}${b ?? 0}`);
+      window.tirarSalvacion = (b) => window.lanzarDado(`1d20${b >= 0 ? '+' : ''}${b ?? 0}`);
+      window.tirarDano      = (d, b) => window.lanzarDado(`${d}${b ? (b >= 0 ? '+' : '') + b : ''}`);
+    </script>
+
+    <!-- ============================================================ -->
+    <!-- Vite sustituye esta línea por el bundle compilado + CSS       -->
+    <!-- ============================================================ -->
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

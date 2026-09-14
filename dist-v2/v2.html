@@ -6,22 +6,21 @@
     <title>TaleSpire 5e Toolset v2</title>
 
     <script>
-      // 1. STUBS de callbacks del manifiesto (los 9)
+      // ============================================================
+      // 1. STUBS de callbacks del manifiesto
+      // ============================================================
       const stubs = [
-        'handleRollResult',
-        'logSymbioteEvent', 'onStateChangeEvent', 'onCreatureStateChange',
-        'handleSyncEvents', 'handleSyncClientEvents', 'handleClientEvents',
-        'handlePlayerPermissionEvents', 'handleChatMessage'
+        'handleRollResult', 'logSymbioteEvent', 'onStateChangeEvent',
+        'onCreatureStateChange', 'handleSyncEvents', 'handleSyncClientEvents',
+        'handleClientEvents', 'handlePlayerPermissionEvents', 'handleChatMessage'
       ];
-      stubs.forEach(name => {
-        if (typeof window[name] !== 'function') {
-          window[name] = function () {};
-        }
-      });
+      stubs.forEach(n => { if (typeof window[n] !== 'function') window[n] = function(){}; });
     </script>
 
     <script>
-      // 2. FIX CRÍTICO: window.confirm / prompt / alert
+      // ============================================================
+      // 2. FIX DIALOGS (Vuplex bloquea confirm/alert/prompt)
+      // ============================================================
       (function fixBlockedDialogs() {
         if (window.__ts5e_dialogs_fixed) return;
         window.__ts5e_dialogs_fixed = true;
@@ -81,7 +80,7 @@
         }
 
         window.confirm = function (mensaje) {
-          console.log('[TS5E] confirm interceptado:', mensaje);
+          console.log('[TS5E] confirm:', mensaje);
           overlay(String(mensaje || ''), {
             items: [
               { label: 'Cancelar', valor: false },
@@ -92,14 +91,14 @@
         };
 
         window.alert = function (mensaje) {
-          console.log('[TS5E] alert interceptado:', mensaje);
+          console.log('[TS5E] alert:', mensaje);
           overlay(String(mensaje || ''), {
             items: [{ label: 'OK', valor: undefined, color: 'primary', foco: true }]
           });
         };
 
         window.prompt = function (mensaje, porDefecto) {
-          console.log('[TS5E] prompt interceptado:', mensaje, porDefecto);
+          console.log('[TS5E] prompt:', mensaje, porDefecto);
           const def = porDefecto == null ? '' : String(porDefecto);
           overlay(String(mensaje || ''), {
             input: def,
@@ -116,7 +115,9 @@
     </script>
 
     <script>
-      // 3. CONFIRM BLOQUEANTE REAL PARA #delete-character
+      // ============================================================
+      // 3. CONFIRM BLOQUEANTE PARA #delete-character
+      // ============================================================
       (function confirmDeleteBlocking() {
         function preguntar(mensaje) {
           return new Promise((resolve) => {
@@ -170,59 +171,7 @@
       })();
     </script>
 
-    <script>
-      // 4. ESPERAR A ts.dice
-      function esperarDice(timeoutMs = 10000) {
-        return new Promise((resolve) => {
-          const inicio = Date.now();
-          (function check() {
-            const ts = window.com && window.com.bouncyrock && window.com.bouncyrock.talespire;
-            if (ts && ts.dice && typeof ts.dice.putDiceInTray === 'function') return resolve(ts);
-            if (Date.now() - inicio > timeoutMs) return resolve(null);
-            setTimeout(check, 150);
-          })();
-        });
-      }
-
-      // 5. LANZAR DADO
-      window.lanzarDado = async function (notacion) {
-        const ts = await esperarDice();
-        if (!ts) { console.error('[TS5E] ts.dice no disponible'); return null; }
-        try {
-          const str = (notacion || '1d20').trim();
-          if (!await ts.dice.isValidRollString(str)) {
-            console.error('[TS5E] Notación inválida:', str);
-            return null;
-          }
-          const d = await ts.dice.makeRollDescriptors(str);
-          await ts.dice.putDiceInTray(d, false);
-          return true;
-        } catch (e) {
-          console.error('[TS5E] Error lanzarDado:', e);
-          return null;
-        }
-      };
-
-      window.tirarAtaque    = (b) => window.lanzarDado(`1d20${b >= 0 ? '+' : ''}${b ?? 0}`);
-      window.tirarSalvacion = (b) => window.lanzarDado(`1d20${b >= 0 ? '+' : ''}${b ?? 0}`);
-      window.tirarDano      = (d, b) => window.lanzarDado(`${d}${b ? (b >= 0 ? '+' : '') + b : ''}`);
-    </script>
-
     <style>
-      #toolset-dice-bar {
-        position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
-        display: flex; gap: 6px; padding: 6px 10px;
-        background: rgba(18, 23, 17, 0.92); border: 1px solid #3a4a36;
-        border-radius: 10px; z-index: 9999;
-        font-family: system-ui, sans-serif; font-size: 13px; color: #d9bd73;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-      }
-      #toolset-dice-bar button {
-        background: #2a3826; color: #d9bd73; border: 1px solid #4a5a46;
-        border-radius: 6px; padding: 6px 10px; cursor: pointer; font-weight: bold;
-      }
-      #toolset-dice-bar button:hover { background: #3a4a36; }
-      #toolset-dice-bar .lbl { align-self: center; opacity: 0.7; margin-right: 4px; }
       .toolset-rolling { outline: 2px solid #d9bd73 !important; outline-offset: 2px; transition: outline 0.15s ease; }
 
       #ts5e-view-tabs {
@@ -240,25 +189,16 @@
       #ts5e-view-tabs button.active { background: #d9bd73; color: #1c1c1c; }
       #ts5e-view-tabs button.inactive { background: #1c1c1c; color: #edf1e8; }
     </style>
+    <script type="module" crossorigin src="./assets/v2-CIotRY_R.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/v2-BoxBnH74.css">
   </head>
   <body>
     <main id="app" aria-live="polite"></main>
 
-    <div id="toolset-dice-bar">
-      <span class="lbl">Tiradas:</span>
-      <button data-roll="1d20">d20</button>
-      <button data-roll="1d20+5">d20+5</button>
-      <button data-roll="1d12">d12</button>
-      <button data-roll="1d10">d10</button>
-      <button data-roll="1d8">d8</button>
-      <button data-roll="1d6">d6</button>
-      <button data-roll="1d4">d4</button>
-      <button data-roll="2d6">2d6</button>
-      <button data-roll="8d6">8d6</button>
-    </div>
-
     <script>
-      // 6. PESTAÑAS DE VISTA (PJ / GM / Auto)
+      // ============================================================
+      // 4. PESTAÑAS DE VISTA (PJ / GM / Auto)
+      // ============================================================
       (function setupViewTabs() {
         const current = localStorage.getItem('ts5e:view') || 'auto';
 
@@ -286,13 +226,133 @@
         document.body.style.paddingTop = '44px';
         document.body.style.boxSizing = 'border-box';
       })();
+    </script>
 
-      // 7. BARRA FLOTANTE
-      document.querySelectorAll('#toolset-dice-bar button').forEach(btn => {
-        btn.addEventListener('click', () => window.lanzarDado(btn.dataset.roll));
-      });
+    <script>
+      // ============================================================
+      // 5. WATCHER DE TS: aplica parches en cuanto window.TS exista
+      //    (antes que main.ts llame a resolveTaleSpireClientRole)
+      // ============================================================
+      (function watchTsAndPatch() {
+        if (window.__ts5e_watcher_started) return;
+        window.__ts5e_watcher_started = true;
 
-      // 8. CLICK-TO-ROLL EN LA FICHA
+        const desiredView = localStorage.getItem('ts5e:view') || 'auto';
+
+        const interval = setInterval(() => {
+          if (!window.TS) return;
+          const ts = window.TS;
+
+          // A. FIX getSelectedCreatures → array de strings
+          if (!window.__ts5e_selected_creatures_fixed && ts.creatures?.getSelectedCreatures) {
+            window.__ts5e_selected_creatures_fixed = true;
+            const orig = ts.creatures.getSelectedCreatures.bind(ts.creatures);
+            ts.creatures.getSelectedCreatures = async function (...args) {
+              const arr = await orig(...args);
+              if (!Array.isArray(arr) || arr.length === 0) return arr;
+              return arr.map(x => typeof x === 'string' ? x : String(x?.id ?? '')).filter(Boolean);
+            };
+            console.log('[V2] getSelectedCreatures parcheado (strings)');
+          }
+
+          // B. Anuncio de tiradas en el chat
+          if (!window.__ts5e_roll_chat && ts.dice?.putDiceInTray && ts.players?.whoAmI && ts.chat?.send) {
+            window.__ts5e_roll_chat = true;
+            const origPut = ts.dice.putDiceInTray.bind(ts.dice);
+            let playerIdCache = null;
+
+            async function getPlayerId() {
+              if (playerIdCache) return playerIdCache;
+              try { const p = await ts.players.whoAmI(); playerIdCache = p?.id || null; return playerIdCache; }
+              catch { return null; }
+            }
+            function extraerNotacion(d) {
+              if (!d) return null;
+              if (typeof d === 'string') return d;
+              if (Array.isArray(d)) {
+                const t = d.map(x => typeof x === 'string' ? x : (x?.name || x?.notation)).filter(Boolean);
+                return t.length ? t.join(' + ') : null;
+              }
+              return d.name || d.notation || null;
+            }
+            function nombrePJ() {
+              try {
+                const raw = localStorage.getItem('talespire-5e-toolset:v2:campaign');
+                if (raw) {
+                  const env = JSON.parse(raw);
+                  const pjs = Object.values(env.campaign?.characters || {});
+                  for (const pj of pjs) {
+                    if (!pj.name) continue;
+                    const el = [...document.querySelectorAll('h1, h2, h3')].find(e => e.textContent?.trim() === pj.name);
+                    if (el) return pj.name;
+                  }
+                  if (pjs[0]?.name) return pjs[0].name;
+                }
+              } catch {}
+              return 'Alguien';
+            }
+
+            ts.dice.putDiceInTray = async function (d, ...rest) {
+              const r = await origPut(d, ...rest);
+              try {
+                const n = extraerNotacion(d);
+                const q = nombrePJ();
+                const pid = await getPlayerId();
+                if (pid && n) {
+                  const msg = `🎲 ${q} tira: ${n}`;
+                  await ts.chat.send(msg, pid);
+                  console.log('[CHAT]', msg);
+                }
+              } catch (e) { console.warn('[CHAT] error:', e?.message || e); }
+              return r;
+            };
+            console.log('[V2] Chat de tiradas activado');
+          }
+
+          // C. Spoof temporal de rol (según la tab activa)
+          if (desiredView !== 'auto' && !window.__ts5e_role_spoofed && ts.clients?.whoAmI) {
+            window.__ts5e_role_spoofed = true;
+            const role = desiredView === 'gm' ? 'gm' : 'player';
+            const patch = (v) => (v && typeof v === 'object' && !Array.isArray(v)) ? { ...v, clientMode: role } : v;
+
+            const oWho = ts.clients.whoAmI.bind(ts.clients);
+            const oMore = ts.clients.getMoreInfo?.bind(ts.clients);
+
+            ts.clients.whoAmI = async (...a) => patch(await oWho(...a));
+            if (oMore) {
+              ts.clients.getMoreInfo = async (list, ...a) => {
+                const r = await oMore(list, ...a);
+                return Array.isArray(r) ? r.map(patch) : patch(r);
+              };
+            }
+            console.log('[V2] Spoof de rol aplicado:', role);
+
+            // Restaurar tras 5s (main.ts ya habrá decidido la vista)
+            setTimeout(() => {
+              ts.clients.whoAmI = oWho;
+              if (oMore) ts.clients.getMoreInfo = oMore;
+              console.log('[V2] whoAmI/getMoreInfo restaurados al real');
+            }, 5000);
+          }
+
+          // Cuando todos los parches están aplicados, dejamos de mirar
+          if (window.__ts5e_selected_creatures_fixed &&
+              window.__ts5e_roll_chat &&
+              (desiredView === 'auto' || window.__ts5e_role_spoofed)) {
+            clearInterval(interval);
+            console.log('[V2] Todos los parches de TS aplicados.');
+          }
+        }, 20);
+
+        // Timeout por si nunca llega TS
+        setTimeout(() => clearInterval(interval), 25000);
+      })();
+    </script>
+
+    <script>
+      // ============================================================
+      // 6. CLICK-TO-ROLL
+      // ============================================================
       (function setupClickToRoll() {
         const EXCLUDE = [
           /descanso/i, /edici[oó]n/i, /juego/i,
@@ -331,6 +391,7 @@
           if (!btn) return;
           if (btn.id === 'delete-character') return;
           if (btn.id === 'export-character') return;
+          if (btn.id === 'link-miniature') return;
 
           const text = (btn.textContent || '').replace(/\s+/g, ' ').trim();
           if (!text || !/[A-Za-zÁÉÍÓÚáéíóúñ]/.test(text)) return;
@@ -349,111 +410,47 @@
           window.lanzarDado(notacion);
         }, true);
       })();
+
+      // ============================================================
+      // 7. LANZAR DADO
+      // ============================================================
+      function esperarDice(timeoutMs = 10000) {
+        return new Promise((resolve) => {
+          const inicio = Date.now();
+          (function check() {
+            const ts = window.com && window.com.bouncyrock && window.com.bouncyrock.talespire;
+            if (ts && ts.dice && typeof ts.dice.putDiceInTray === 'function') return resolve(ts);
+            if (Date.now() - inicio > timeoutMs) return resolve(null);
+            setTimeout(check, 150);
+          })();
+        });
+      }
+
+      window.lanzarDado = async function (notacion) {
+        const ts = await esperarDice();
+        if (!ts) { console.error('[TS5E] ts.dice no disponible'); return null; }
+        try {
+          const str = (notacion || '1d20').trim();
+          if (!await ts.dice.isValidRollString(str)) {
+            console.error('[TS5E] Notación inválida:', str);
+            return null;
+          }
+          const d = await ts.dice.makeRollDescriptors(str);
+          await ts.dice.putDiceInTray(d, false);
+          return true;
+        } catch (e) {
+          console.error('[TS5E] Error lanzarDado:', e);
+          return null;
+        }
+      };
+
+      window.tirarAtaque    = (b) => window.lanzarDado(`1d20${b >= 0 ? '+' : ''}${b ?? 0}`);
+      window.tirarSalvacion = (b) => window.lanzarDado(`1d20${b >= 0 ? '+' : ''}${b ?? 0}`);
+      window.tirarDano      = (d, b) => window.lanzarDado(`${d}${b ? (b >= 0 ? '+' : '') + b : ''}`);
     </script>
 
-    <link rel="stylesheet" crossorigin href="./assets/v2-BoxBnH74.css">
-
     <!-- ============================================================ -->
-    <!-- Cargar bundle cuando TS esté listo + spoof de rol             -->
-    <!-- ============================================================ -->
-    <script>
-    (function cargarBundleConRolForzado() {
-        const ASSET_JS     = './assets/v2-hCvdJI_L.js';
-        const MAX_INTENTOS = 100;
-        const INTERVALO_MS = 200;
-
-        const desiredView = localStorage.getItem('ts5e:view') || 'auto';
-
-        let intentos = 0;
-
-        function intentar() {
-            intentos++;
-
-            if (window.TS && typeof window.TS === 'object' && window.TS.localStorage) {
-                console.log('[V2] window.TS detectado tras ' + (intentos * INTERVALO_MS) + ' ms.');
-                console.log('[V2] Vista deseada:', desiredView);
-
-                if (desiredView !== 'auto' && window.TS.clients) {
-                    spoofClientsRole(window.TS.clients, desiredView);
-                }
-
-                cargarBundle();
-                return;
-            }
-
-            if (intentos >= MAX_INTENTOS) {
-                console.warn('[V2] window.TS no apareció en 20s. Cargando en modo fallback.');
-                cargarBundle();
-                return;
-            }
-
-            setTimeout(intentar, INTERVALO_MS);
-        }
-
-        // Fuerza clientMode en whoAmI() y getMoreInfo() para que
-        // resolveTaleSpireClientRole() devuelva el rol que queremos.
-        function spoofClientsRole(clients, role) {
-            const forceMode = (role === 'gm') ? 'gm' : 'player';
-            console.log('[V2] Spoof de rol:', forceMode);
-
-            const patch = (v) => {
-                if (v && typeof v === 'object' && !Array.isArray(v)) {
-                    return { ...v, clientMode: forceMode };
-                }
-                return v;
-            };
-
-            const originalWhoAmI = clients.whoAmI?.bind(clients);
-            if (originalWhoAmI) {
-                clients.whoAmI = async function (...args) {
-                    const result = await originalWhoAmI(...args);
-                    return patch(result);
-                };
-                console.log('[V2] Envuelto whoAmI');
-            } else {
-                console.warn('[V2] whoAmI no es función');
-            }
-
-            const originalGetMoreInfo = clients.getMoreInfo?.bind(clients);
-            if (originalGetMoreInfo) {
-                clients.getMoreInfo = async function (list, ...args) {
-                    const result = await originalGetMoreInfo(list, ...args);
-                    if (Array.isArray(result)) return result.map(patch);
-                    return patch(result);
-                };
-                console.log('[V2] Envuelto getMoreInfo');
-            } else {
-                console.warn('[V2] getMoreInfo no es función');
-            }
-        }
-
-        function cargarBundle() {
-            if (window.__ts5e_bundle_cargado) return;
-            window.__ts5e_bundle_cargado = true;
-
-            const s = document.createElement('script');
-            s.type = 'module';
-            s.crossOrigin = 'anonymous';
-            s.src = ASSET_JS;
-            s.onload = () => {
-                console.log('[V2] Bundle cargado.');
-                setTimeout(() => {
-                    if (typeof window.onStateChangeEvent === 'function') {
-                        console.log('[V2] Forzando hasInitialized (race condition)');
-                        try {
-                            window.onStateChangeEvent({ kind: 'hasInitialized' });
-                        } catch (e) {
-                            console.error('[V2] Fallback falló:', e);
-                        }
-                    }
-                }, 500);
-            };
-            s.onerror = (e) => console.error('[V2] Error cargando bundle:', e);
-            document.body.appendChild(s);
-        }
-
-        intentar();
-    })();
-    </script>
+    <!-- Vite sustituye esta línea por el bundle compilado + CSS       -->
+    <!-- ============================================================ -->
   </body>
 </html>
