@@ -307,37 +307,52 @@
       })();
     </script>
 
-    <!-- Bundle original -->
-    <script type="module" crossorigin src="./assets/v2-hCvdJI_L.js"></script>
+    <!-- CSS del bundle -->
     <link rel="stylesheet" crossorigin href="./assets/v2-BoxBnH74.css">
 
     <!-- ============================================================ -->
-    <!-- 8. FALLBACK: forzar hasInitialized si TaleSpire no lo manda  -->
+    <!-- Cargar el bundle SOLO cuando window.TS esté inyectado        -->
     <!-- ============================================================ -->
     <script>
-    (function fallbackInit() {
-        if (window.__ts5e_init_fallback) return;
-        window.__ts5e_init_fallback = true;
+    (function cargarBundleCuandoTSEsteListo() {
+        const ASSET_JS     = './assets/v2-hCvdJI_L.js';
+        const MAX_INTENTOS = 100;   // 100 × 200ms = 20s
+        const INTERVALO_MS = 200;
 
-        // Esperamos 4s a que main.ts registre su handler real
-        setTimeout(function () {
-            if (typeof window.onStateChangeEvent !== 'function') {
-                console.warn('[V2] onStateChangeEvent no definido, no hay nada que forzar.');
+        let intentos = 0;
+
+        function intentar() {
+            intentos++;
+
+            if (window.TS && typeof window.TS === 'object' && window.TS.localStorage) {
+                console.log('[V2] window.TS detectado tras ' + (intentos * INTERVALO_MS) + ' ms. Cargando bundle...');
+                cargarBundle();
                 return;
             }
-            // Comprobamos si la app ya arrancó (main.ts muestra el mensaje "Esperando…" si no)
-            const welcome = document.querySelector('.welcome');
-            if (welcome && welcome.textContent.includes('Esperando')) {
-                console.log('[V2] Fallback: forzando hasInitialized tras 4s');
-                try {
-                    window.onStateChangeEvent({ kind: 'hasInitialized' });
-                } catch (e) {
-                    console.error('[V2] Fallback falló:', e);
-                }
-            } else {
-                console.log('[V2] App ya inicializada, fallback innecesario.');
+
+            if (intentos >= MAX_INTENTOS) {
+                console.warn('[V2] window.TS no apareció en 20s. Cargando bundle en modo fallback.');
+                cargarBundle();
+                return;
             }
-        }, 4000);
+
+            setTimeout(intentar, INTERVALO_MS);
+        }
+
+        function cargarBundle() {
+            if (window.__ts5e_bundle_cargado) return;
+            window.__ts5e_bundle_cargado = true;
+
+            const s = document.createElement('script');
+            s.type = 'module';
+            s.crossOrigin = 'anonymous';
+            s.src = ASSET_JS;
+            s.onload = () => console.log('[V2] Bundle cargado.');
+            s.onerror = (e) => console.error('[V2] Error cargando bundle:', e);
+            document.body.appendChild(s);
+        }
+
+        intentar();
     })();
     </script>
   </body>
